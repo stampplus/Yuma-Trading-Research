@@ -39,10 +39,10 @@ Response format:
 }
 
 STRICT TRADING RULES:
-- Only trade when RSI < 40 (oversold) for LONG
+- Only trade when RSI < 35 (oversold) for LONG
 - Only trade when RSI > 60 (overbought) for SHORT
-- Volume should be above average (helps confirm move)
-- In sideways market (RSI 40-60), ALWAYS return HOLD
+- Any volume is OK - don't wait for high volume
+- In sideways market (RSI 35-60), return HOLD
 - Better to miss a trade than take a bad trade
 
 Remember: Quality over quantity. Low confidence = HOLD."""
