@@ -39,13 +39,12 @@ Response format:
 }
 
 STRICT TRADING RULES:
-- Only trade when RSI < 35 (oversold) for LONG
-- Only trade when RSI > 60 (overbought) for SHORT
-- Any volume is OK - don't wait for high volume
-- In sideways market (RSI 35-60), return HOLD
-- Better to miss a trade than take a bad trade
+- LONG when RSI < 50 (slightly oversold)
+- SHORT when RSI > 55 (slightly overbought)
+- Any volume is OK
+- This is aggressive DCA - enter on most pullbacks
 
-Remember: Quality over quantity. Low confidence = HOLD."""
+Remember: DCA strategy - buy the dip!"""
 
 # Confidence threshold below which Claude is consulted
 CONFIDENCE_THRESHOLD: float = 0.6

@@ -40,9 +40,9 @@ TP2_CLOSE_RATIO: float = 1.00
 HARD_SL_PCT: float = 0.09  # -9% from avg entry -> STOP_MARKET
 SOFT_SL_PCT: float = 0.06  # -6% -> Claude reviews
 
-# --- Entry conditions (relaxed for more trades) ---
-RSI_THRESHOLD: float = 35.0  # RSI(14) must be below 35 (more oversold)
-RSI_OVERRIDE: float = 60.0  # Or above 60 for SHORT signals
+# --- Entry conditions (very relaxed for more trades) ---
+RSI_THRESHOLD: float = 50.0  # RSI(14) below 50 for LONG
+RSI_OVERRIDE: float = 55.0  # Above 55 for SHORT signals
 EMA_PERIOD: int = 50  # EMA(50, 1h) — price must be below for LONG
 FUNDING_RATE_MAX: float = 0.001  # 0.1% max funding rate
 
