@@ -166,7 +166,7 @@ class SignalAgent:
     async def _classify_signal(self, context: dict[str, Any]) -> dict[str, Any] | None:
         """Call AI API for signal classification.
 
-        Uses Groq (free) or Claude based on config.
+        Uses Groq, Claude, or local RSI logic based on config.
 
         Args:
             context: Compressed market context.
@@ -183,8 +183,51 @@ class SignalAgent:
 
         if model_choice == 'claude':
             return await self._classify_with_claude(context)
+        elif model_choice == 'local':
+            return self._classify_local(context)
         else:
             return await self._classify_with_groq(context)
+
+    def _classify_local(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Use local RSI-based logic for signal classification (free, instant).
+
+        This is a simple but effective strategy based on RSI thresholds.
+        """
+        rsi = context.get('rsi_14', 50)
+        price = context.get('price', 0)
+        ema50 = context.get('ema_50', price)
+        vol_ratio = context.get('vol_ratio', 1.0)
+
+        # RSI-based signal
+        if rsi < 40:
+            signal_type = "LONG"
+            reasoning = f"RSI oversold at {rsi:.1f}"
+            confidence = 0.80 if rsi < 30 else 0.70
+        elif rsi > 60:
+            signal_type = "SHORT"
+            reasoning = f"RSI overbought at {rsi:.1f}"
+            confidence = 0.80 if rsi > 70 else 0.70
+        else:
+            signal_type = "HOLD"
+            reasoning = f"RSI neutral at {rsi:.1f}"
+            confidence = 0.60
+
+        # Adjust confidence based on volume
+        if vol_ratio > 1.5:
+            confidence = min(0.95, confidence + 0.1)
+            reasoning += ", high volume"
+        elif vol_ratio < 0.5:
+            confidence = max(0.40, confidence - 0.1)
+            reasoning += ", low volume"
+
+        logger.info(f"Local signal: {signal_type} confidence={confidence:.2f} RSI={rsi:.1f}")
+
+        return {
+            "type": signal_type,
+            "confidence": confidence,
+            "reasoning": reasoning,
+            "needs_claude": False,
+        }
 
     async def _classify_with_claude(self, context: dict[str, Any]) -> dict[str, Any] | None:
         """Call Claude API for signal classification."""

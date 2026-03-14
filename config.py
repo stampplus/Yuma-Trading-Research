@@ -34,20 +34,24 @@ GROQ_MODEL: str = "llama-3.3-70b-versatile"
 GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
 # --- Model preference ---
-# Options: "groq" (free), "claude" (paid), "both" (groq first, claude fallback)
-SIGNAL_MODEL: str = "claude"  # Using Claude for better signals
+# Options: "groq" (free), "claude" (paid), "local" (RSI-based, free, instant!)
+SIGNAL_MODEL: str = "local"  # Using local RSI logic - free & instant!
 
 # --- Anthropic API ---
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL: str = "claude-opus-4-20250514"
 CLAUDE_HAIKU_MODEL: str = "claude-haiku-4-20250414"
 
+# --- OpenAI API (Codex) ---
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL: str = "gpt-4o"
+
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # --- Symbol settings ---
-SYMBOL: str = "DOGEUSDC"
+SYMBOL: str = "XRPUSDT"
 LEVERAGE: int = 10
 MARGIN_TYPE: str = "ISOLATED"
 
