@@ -20,7 +20,7 @@ import anthropic
 
 import config
 from services.event_bus import EventBus
-from services.state import PositionState
+from services.state import PositionState, IDLE
 from strategies.dca_config import CLAUDE_COOLDOWN_MINUTES
 
 logger = logging.getLogger(__name__)
@@ -352,7 +352,6 @@ class StrategyAgent:
         Returns:
             Question string (e.g. "APPROVE_FIRST_ENTRY?").
         """
-        from services.state import IDLE
 
         if self._state.status == IDLE:
             return "APPROVE_FIRST_ENTRY?"
