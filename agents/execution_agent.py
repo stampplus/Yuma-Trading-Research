@@ -151,12 +151,21 @@ class ExecutionAgent:
                 )
                 return
 
-            # Use MARKET order for instant execution (much faster than LIMIT)
+            # Use LIMIT order for better fees (maker = 0.02% vs taker = 0.04%)
+            # But add 0.05% offset to ensure it fills quickly
+            limit_offset = 0.0005  # 0.05% above/below market
+            if side == "BUY":
+                limit_price = round(mark_price * (1 - limit_offset), 2)
+            else:
+                limit_price = round(mark_price * (1 + limit_offset), 2)
+
             order_params: dict[str, Any] = {
                 "symbol": config.SYMBOL,
                 "side": side,
-                "type": "MARKET",
+                "type": "LIMIT",
+                "timeInForce": "GTC",
                 "quantity": str(quantity),
+                "price": str(limit_price),
             }
 
             # If closing, set reduceOnly
