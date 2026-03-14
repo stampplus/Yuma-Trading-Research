@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "derivatives-trading-usds-futures": {
+      "source": "binance/binance-skills-hub",
+      "sourceType": "github",
+      "computedHash": "44307e1fd668aff758e3e8c4354342d5c4f847f452757186c6ceb4d07b5e4425"
+    }
+  }
+}
