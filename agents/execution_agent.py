@@ -175,7 +175,7 @@ class ExecutionAgent:
 
             # Send Telegram notification
             if self._telegram:
-                await self._telegram.notify_order(result)
+                await self._telegram.notify_order(result, balance=balance)
 
         except BinanceAPIError as e:
             logger.error("Order placement failed: %s", e)
