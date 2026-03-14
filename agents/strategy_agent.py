@@ -119,18 +119,22 @@ class StrategyAgent:
                     },
                 )
             elif signal_type == "SHORT":
-                # SHORT means close position or open short
-                await self._bus.emit_async(
-                    "ORDER_APPROVED",
-                    {
-                        "signal": data,
-                        "source": "minimax_auto",
-                        "params": {
-                            "side": "SELL",
-                            "size_pct": 1.0,  # Close full position
+                # SHORT means close position if open, otherwise ignore (no shorting)
+                if self._state.status != IDLE:
+                    await self._bus.emit_async(
+                        "ORDER_APPROVED",
+                        {
+                            "signal": data,
+                            "source": "minimax_auto",
+                            "params": {
+                                "side": "SELL",
+                                "size_pct": 1.0,  # Close full position
+                            },
                         },
-                    },
-                )
+                    )
+                else:
+                    # No position to close - ignore SHORT signal
+                    logger.info("SHORT signal ignored - no open position")
             return
 
         # Check if Claude can be called
@@ -402,9 +406,13 @@ class StrategyAgent:
             confidence = signal_data.get("confidence", 0.5)
 
             if signal_type == "SHORT":
-                # SHORT = close position / open short
-                params["side"] = "SELL"
-                params["size_pct"] = 1.0  # Close full position
+                # SHORT = close position if open, otherwise ignore
+                if self._state.status != IDLE:
+                    params["side"] = "SELL"
+                    params["size_pct"] = 1.0  # Close full position
+                else:
+                    logger.info("SHORT ignored - no position to close")
+                    return  # Don't emit ORDER_APPROVED
             else:
                 # LONG = open position
                 params["side"] = "BUY"

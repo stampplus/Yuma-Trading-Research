@@ -46,8 +46,8 @@ RSI_OVERRIDE: float = 65.0  # Or above 65 for SHORT signals
 EMA_PERIOD: int = 50  # EMA(50, 1h) — price must be below for LONG
 FUNDING_RATE_MAX: float = 0.001  # 0.1% max funding rate
 
-# --- Trend confirmation (avoid sideways) ---
-MIN_VOLUME_RATIO: float = 1.5  # Volume must be 1.5x average
+# --- Trend confirmation (allow more trades) ---
+MIN_VOLUME_RATIO: float = 1.2  # Volume must be 1.2x average (relaxed)
 
 # --- Claude cooldown ---
 CLAUDE_COOLDOWN_MINUTES: int = 30
