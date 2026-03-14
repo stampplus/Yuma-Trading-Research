@@ -105,12 +105,25 @@ async def main() -> None:
         on_kline=market_data_agent.handle_kline,
     )
 
-    # 8. Graceful shutdown handler
+    # 8. Graceful shutdown handler + kill switch
     shutdown_event = asyncio.Event()
 
     def _signal_handler() -> None:
         logger.info("Shutdown signal received")
         shutdown_event.set()
+
+    # Kill switch: create /tmp/trading_bot_stop to stop bot
+    import os
+    STOP_FILE = "/tmp/trading_bot_stop"
+
+    async def check_kill_switch() -> None:
+        """Check for kill switch file periodically."""
+        while not shutdown_event.is_set():
+            if os.path.exists(STOP_FILE):
+                logger.info("Kill switch activated!")
+                os.remove(STOP_FILE)
+                shutdown_event.set()
+            await asyncio.sleep(2)
 
     loop = asyncio.get_running_loop()
     import contextlib
@@ -122,9 +135,10 @@ async def main() -> None:
     # 9. Send startup notification
     await telegram.notify_startup()
 
-    # 10. Start streaming
+    # 10. Start streaming + kill switch checker
     logger.info("Starting WebSocket connection...")
     ws_task = asyncio.create_task(ws_client.start())
+    kill_task = asyncio.create_task(check_kill_switch())
 
     try:
         if sys.platform == "win32":
@@ -136,6 +150,7 @@ async def main() -> None:
     finally:
         # 11. Cleanup
         logger.info("Stopping components...")
+        kill_task.cancel()
         await ws_client.stop()
         await user_stream.stop()
         await signal_agent.stop()
@@ -144,6 +159,8 @@ async def main() -> None:
         ws_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await ws_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await kill_task
         event_bus.clear()
         logger.info("Shutdown complete")
 
