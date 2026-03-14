@@ -152,8 +152,8 @@ class ExecutionAgent:
                 return
 
             # Use LIMIT order for better fees (maker = 0.02% vs taker = 0.04%)
-            # But add 0.05% offset to ensure it fills quickly
-            limit_offset = 0.0005  # 0.05% above/below market
+            # Add 0.1% offset to ensure profit (buy below, sell above)
+            limit_offset = 0.001  # 0.1% offset for profit
             if side == "BUY":
                 limit_price = round(mark_price * (1 - limit_offset), 2)
             else:
@@ -276,9 +276,15 @@ class ExecutionAgent:
         with contextlib.suppress(BinanceAPIError):
             await self._rest.cancel_all_orders(config.SYMBOL)
 
-        # TP-1: close 50% at +2% — use whole numbers for precision
+        # Get current position qty before placing TPs
+        current_qty = self._state.total_qty()
+        if current_qty <= 0:
+            logger.warning("No position to place TP/SL")
+            return
+
+        # TP-1: close 50% at +TP1_PCT — use whole numbers
         tp1_price = round(avg * (1 + TP1_PCT), 2)
-        tp1_qty = int(total_qty * TP1_CLOSE_RATIO)  # Whole numbers
+        tp1_qty = int(current_qty * TP1_CLOSE_RATIO)  # Whole numbers
 
         if tp1_qty > 0:
             try:
@@ -295,16 +301,18 @@ class ExecutionAgent:
                 )
                 self._state.tp_orders.append(str(result.get("orderId", "")))
                 trade_logger.info(
-                    "TP-1 placed: price=%.2f qty=%.3f",
+                    "TP-1 placed: price=%.2f (+%.1f%%) qty=%d",
                     tp1_price,
+                    TP1_PCT * 100,
                     tp1_qty,
                 )
             except BinanceAPIError as e:
                 logger.error("TP-1 placement failed: %s", e)
 
-        # TP-2: close remaining at +4% — use whole numbers
+        # TP-2: close remaining at +TP2_PCT — no reduceOnly (position may be partially closed)
+        remaining_qty = current_qty - tp1_qty
         tp2_price = round(avg * (1 + TP2_PCT), 2)
-        tp2_qty = int(total_qty - tp1_qty)  # Whole numbers
+        tp2_qty = remaining_qty  # Close whatever remains
 
         if tp2_qty > 0:
             try:
@@ -316,12 +324,12 @@ class ExecutionAgent:
                         "timeInForce": "GTC",
                         "quantity": str(tp2_qty),
                         "price": str(tp2_price),
-                        "reduceOnly": "true",
+                        # No reduceOnly - position may already be reduced
                     }
                 )
                 self._state.tp_orders.append(str(result.get("orderId", "")))
                 trade_logger.info(
-                    "TP-2 placed: price=%.2f qty=%.3f",
+                    "TP-2 placed: price=%.2f (+%.1f%%) qty=%d",
                     tp2_price,
                     tp2_qty,
                 )

@@ -30,10 +30,10 @@ DCA_LEVELS: list[DCALevel] = [
     {"level": 3, "drop_pct": 0.06, "size_multiplier": 2.0, "auto": False},
 ]
 
-# --- Take profit (wider for more profit) ---
-TP1_PCT: float = 0.015  # +1.5% from avg entry, close 50%
+# --- Take profit (realistic for low-price coins) ---
+TP1_PCT: float = 0.02  # +2% from avg entry, close 50%
 TP1_CLOSE_RATIO: float = 0.50
-TP2_PCT: float = 0.03  # +3% from avg entry, close remaining
+TP2_PCT: float = 0.05  # +5% from avg entry, close remaining
 TP2_CLOSE_RATIO: float = 1.00
 
 # --- Stop loss ---
