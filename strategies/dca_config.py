@@ -30,20 +30,24 @@ DCA_LEVELS: list[DCALevel] = [
     {"level": 3, "drop_pct": 0.06, "size_multiplier": 2.0, "auto": False},
 ]
 
-# --- Take profit ---
-TP1_PCT: float = 0.02  # +2% from avg entry, close 50%
+# --- Take profit (wider for more profit) ---
+TP1_PCT: float = 0.015  # +1.5% from avg entry, close 50%
 TP1_CLOSE_RATIO: float = 0.50
-TP2_PCT: float = 0.04  # +4% from avg entry, close remaining
+TP2_PCT: float = 0.03  # +3% from avg entry, close remaining
 TP2_CLOSE_RATIO: float = 1.00
 
 # --- Stop loss ---
 HARD_SL_PCT: float = 0.09  # -9% from avg entry -> STOP_MARKET
 SOFT_SL_PCT: float = 0.06  # -6% -> Claude reviews
 
-# --- Entry conditions ---
-RSI_THRESHOLD: float = 45.0  # RSI(14, 1h) must be below this
-EMA_PERIOD: int = 50  # EMA(50, 1h) — price must be below
+# --- Entry conditions (stricter for quality) ---
+RSI_THRESHOLD: float = 40.0  # RSI(14) must be below 40 (more oversold)
+RSI_OVERRIDE: float = 65.0  # Or above 65 for SHORT signals
+EMA_PERIOD: int = 50  # EMA(50, 1h) — price must be below for LONG
 FUNDING_RATE_MAX: float = 0.001  # 0.1% max funding rate
+
+# --- Trend confirmation (avoid sideways) ---
+MIN_VOLUME_RATIO: float = 1.5  # Volume must be 1.5x average
 
 # --- Claude cooldown ---
 CLAUDE_COOLDOWN_MINUTES: int = 30

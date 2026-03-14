@@ -38,15 +38,14 @@ Response format:
   "reasoning": "brief 1-sentence reason"
 }
 
-Rules:
-- LONG: conditions favor opening/adding to a long position
-- SHORT: conditions favor closing or avoiding long positions
-- HOLD: no clear signal, maintain current state
-- confidence < 0.6 means the signal is uncertain
-- Consider RSI, EMA, price action, and volume together
-- RSI below 45 with price below EMA50 favors LONG for DCA strategy
-- RSI above 70 is overbought, favor HOLD or SHORT
-- High volume ratio (>2.0) with downtrend suggests potential reversal"""
+STRICT TRADING RULES:
+- Only trade when RSI < 40 (oversold) for LONG
+- Only trade when RSI > 60 (overbought) for SHORT
+- Volume must be 1.5x average or higher
+- In sideways market (RSI 40-60), ALWAYS return HOLD
+- Better to miss a trade than take a bad trade
+
+Remember: Quality over quantity. Low confidence = HOLD."""
 
 # Confidence threshold below which Claude is consulted
 CONFIDENCE_THRESHOLD: float = 0.6
