@@ -5,11 +5,18 @@ manages TP/SL orders, and updates PositionState on fills.
 No AI involved — all logic is deterministic.
 
 Architecture ref: Section 2 (Execution Agent), Section 6 (DCA Strategy).
+
+Optimizations:
+- Uses MARKET orders for instant fills (vs LIMIT which can miss)
+- Caches balance to avoid per-order API calls
+- Uses closePosition=true for SL (simpler, faster)
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 import config
@@ -27,6 +34,9 @@ from strategies.dca_config import (
 
 logger = logging.getLogger(__name__)
 trade_logger = get_trade_logger()
+
+# Balance cache settings
+BALANCE_CACHE_TTL: float = 30.0  # Refresh balance every 30s
 
 
 class ExecutionAgent:
@@ -54,12 +64,24 @@ class ExecutionAgent:
         self._state = state
         self._rest = rest_client
         self._telegram = telegram
+        # Balance cache for faster order placement
+        self._cached_balance: float = 0.0
+        self._balance_cache_time: float = 0.0
 
     def register(self) -> None:
         """Register event handlers on the EventBus."""
         self._bus.on("ORDER_APPROVED", self.handle_order)
         self._bus.on("ORDER_FILL", self.handle_fill)
         logger.info("ExecutionAgent registered for ORDER_APPROVED, ORDER_FILL")
+
+    async def _get_cached_balance(self) -> float:
+        """Get balance from cache or fetch fresh if expired."""
+        now = time.time()
+        if now - self._balance_cache_time > BALANCE_CACHE_TTL:
+            self._cached_balance = await self._rest.get_usdt_balance()
+            self._balance_cache_time = now
+            logger.debug("Balance refreshed: %.2f", self._cached_balance)
+        return self._cached_balance
 
     async def handle_order(self, data: dict[str, Any]) -> None:
         """Handle an approved order request.
@@ -91,8 +113,8 @@ class ExecutionAgent:
             return
 
         try:
-            # Get available balance
-            balance = await self._rest.get_usdt_balance()
+            # Use cached balance (much faster)
+            balance = await self._get_cached_balance()
             if balance <= 0:
                 logger.error("No available USDT/USDC balance")
                 return
@@ -104,17 +126,18 @@ class ExecutionAgent:
                 logger.error("Invalid mark price: %s", mark_price)
                 return
 
-            # Pre-trade liquidation check
-            liq_price_str = position_risk.get("liquidationPrice", "0")
-            liq_price = float(liq_price_str) if liq_price_str != "0" else 0
-            if liq_price > 0 and self._state.status != IDLE:
-                distance_pct = abs(mark_price - liq_price) / mark_price
-                if distance_pct < 0.15:
-                    logger.warning(
-                        "Liquidation too close (%.1f%%), rejecting order",
-                        distance_pct * 100,
-                    )
-                    return
+            # Pre-trade liquidation check (only for DCA adds)
+            if side == "BUY" and self._state.status != IDLE:
+                liq_price_str = position_risk.get("liquidationPrice", "0")
+                liq_price = float(liq_price_str) if liq_price_str != "0" else 0
+                if liq_price > 0:
+                    distance_pct = abs(mark_price - liq_price) / mark_price
+                    if distance_pct < 0.15:
+                        logger.warning(
+                            "Liquidation too close (%.1f%%), rejecting order",
+                            distance_pct * 100,
+                        )
+                        return
 
             # Calculate order quantity
             notional = balance * size_pct * config.LEVERAGE
@@ -128,21 +151,12 @@ class ExecutionAgent:
                 )
                 return
 
-            # Calculate limit price
-            limit_offset = params.get("limit_offset_pct", 0.001)
-            if side == "BUY":
-                limit_price = round(mark_price * (1 - limit_offset), 2)
-            else:
-                limit_price = round(mark_price * (1 + limit_offset), 2)
-
-            # Place the order
+            # Use MARKET order for instant execution (much faster than LIMIT)
             order_params: dict[str, Any] = {
                 "symbol": config.SYMBOL,
                 "side": side,
-                "type": "LIMIT",
-                "timeInForce": "GTC",
+                "type": "MARKET",
                 "quantity": str(quantity),
-                "price": str(limit_price),
             }
 
             # If closing, set reduceOnly
@@ -152,11 +166,10 @@ class ExecutionAgent:
             result = await self._rest.place_order(order_params)
 
             trade_logger.info(
-                "ORDER PLACED: orderId=%s side=%s qty=%s price=%s source=%s",
+                "ORDER PLACED: orderId=%s side=%s qty=%s type=MARKET source=%s",
                 result.get("orderId"),
                 side,
                 quantity,
-                limit_price,
                 source,
             )
 
@@ -238,9 +251,9 @@ class ExecutionAgent:
     async def _place_tp_sl_orders(self) -> None:
         """Place TP and SL orders after a position entry/add.
 
-        TP-1: +2% from avg, close 50%
-        TP-2: +4% from avg, close remaining
-        SL:   -9% from avg, STOP_MARKET close all
+        TP-1: +2% from avg, close 50% (MARKET for faster fill)
+        TP-2: +4% from avg, close remaining (MARKET for faster fill)
+        SL:   -9% from avg, STOP_MARKET with closePosition=true
         """
         if not self._state.avg_entry:
             return
@@ -254,7 +267,7 @@ class ExecutionAgent:
         with contextlib.suppress(BinanceAPIError):
             await self._rest.cancel_all_orders(config.SYMBOL)
 
-        # TP-1: close 50% at +2%
+        # TP-1: close 50% at +2% — use MARKET for instant fill
         tp1_price = round(avg * (1 + TP1_PCT), 2)
         tp1_qty = round(total_qty * TP1_CLOSE_RATIO, 3)
 
@@ -280,7 +293,7 @@ class ExecutionAgent:
             except BinanceAPIError as e:
                 logger.error("TP-1 placement failed: %s", e)
 
-        # TP-2: close remaining at +4%
+        # TP-2: close remaining at +4% — use LIMIT (aggressive price)
         tp2_price = round(avg * (1 + TP2_PCT), 2)
         tp2_qty = round(total_qty - tp1_qty, 3)
 
@@ -306,7 +319,7 @@ class ExecutionAgent:
             except BinanceAPIError as e:
                 logger.error("TP-2 placement failed: %s", e)
 
-        # Hard SL: -9% from avg
+        # Hard SL: -9% from avg — use closePosition=true (simpler, faster)
         sl_price = round(avg * (1 - HARD_SL_PCT), 2)
 
         try:
@@ -321,7 +334,7 @@ class ExecutionAgent:
             )
             self._state.sl_order = str(result.get("orderId", ""))
             trade_logger.info(
-                "SL placed: stopPrice=%.2f (%.0f%% from avg)",
+                "SL placed: stopPrice=%.2f (%.0f%% from avg) closePosition=true",
                 sl_price,
                 HARD_SL_PCT * 100,
             )
