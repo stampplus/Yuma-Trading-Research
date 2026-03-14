@@ -68,6 +68,9 @@ class SignalAgent:
         self._bus = event_bus
         self._state = state
         self._session: aiohttp.ClientSession | None = None
+        # Trade cooldown to reduce fees - minimum seconds between trades
+        self._last_trade_time: float = 0
+        self._min_trade_interval: int = 60  # Minimum 60 seconds between trades
 
     async def start(self) -> None:
         """Initialize the HTTP session for Gemini API calls."""
@@ -94,6 +97,13 @@ class SignalAgent:
         Args:
             data: MarketEvent dictionary with price, indicators, etc.
         """
+        # Check trade cooldown
+        import time
+        current_time = time.time()
+        if current_time - self._last_trade_time < self._min_trade_interval:
+            # Skip signal if too soon after last trade (reduce fees)
+            logger.debug("Trade cooldown active, skipping signal")
+            return
         # Build compressed context for MiniMax (MODEL_ROUTING.md spec)
         context = self._build_context(data)
 
@@ -114,6 +124,11 @@ class SignalAgent:
             signal.get("needs_claude"),
             signal.get("reasoning", ""),
         )
+
+        # Update last trade time if not HOLD
+        if signal.get("type") != "HOLD":
+            self._last_trade_time = current_time
+            logger.info("Trade executed, cooldown started: %d seconds", self._min_trade_interval)
 
         await self._bus.emit_async(SIGNAL_RESULT, signal)
 

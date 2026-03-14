@@ -47,3 +47,6 @@ FUNDING_RATE_MAX: float = 0.001  # 0.1% max funding rate
 
 # --- Claude cooldown ---
 CLAUDE_COOLDOWN_MINUTES: int = 30
+
+# --- Trade cooldown (reduce fees) ---
+MIN_TRADE_INTERVAL_SECONDS: int = 60  # Minimum 60 seconds between trades
