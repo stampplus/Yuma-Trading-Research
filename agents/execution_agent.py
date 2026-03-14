@@ -141,7 +141,7 @@ class ExecutionAgent:
 
             # Calculate order quantity
             notional = balance * size_pct * config.LEVERAGE
-            quantity = round(notional / mark_price, 3)
+            quantity = int(round(notional / mark_price))  # Whole numbers only
 
             if quantity <= 0:
                 logger.error(
@@ -267,9 +267,9 @@ class ExecutionAgent:
         with contextlib.suppress(BinanceAPIError):
             await self._rest.cancel_all_orders(config.SYMBOL)
 
-        # TP-1: close 50% at +2% — use MARKET for instant fill
+        # TP-1: close 50% at +2% — use whole numbers for precision
         tp1_price = round(avg * (1 + TP1_PCT), 2)
-        tp1_qty = round(total_qty * TP1_CLOSE_RATIO, 3)
+        tp1_qty = int(total_qty * TP1_CLOSE_RATIO)  # Whole numbers
 
         if tp1_qty > 0:
             try:
@@ -293,9 +293,9 @@ class ExecutionAgent:
             except BinanceAPIError as e:
                 logger.error("TP-1 placement failed: %s", e)
 
-        # TP-2: close remaining at +4% — use LIMIT (aggressive price)
+        # TP-2: close remaining at +4% — use whole numbers
         tp2_price = round(avg * (1 + TP2_PCT), 2)
-        tp2_qty = round(total_qty - tp1_qty, 3)
+        tp2_qty = int(total_qty - tp1_qty)  # Whole numbers
 
         if tp2_qty > 0:
             try:
@@ -319,17 +319,20 @@ class ExecutionAgent:
             except BinanceAPIError as e:
                 logger.error("TP-2 placement failed: %s", e)
 
-        # Hard SL: -9% from avg — use closePosition=true (simpler, faster)
+        # Hard SL: -9% from avg — use LIMIT as STOP (STOP_MARKET not supported for all coins)
         sl_price = round(avg * (1 - HARD_SL_PCT), 2)
+        sl_qty = int(total_qty)  # Close entire position
 
         try:
             result = await self._rest.place_order(
                 {
                     "symbol": config.SYMBOL,
                     "side": "SELL",
-                    "type": "STOP_MARKET",
+                    "type": "STOP",
                     "stopPrice": str(sl_price),
-                    "closePosition": "true",
+                    "quantity": str(sl_qty),
+                    "reduceOnly": "true",
+                    "timeInForce": "GTC",
                 }
             )
             self._state.sl_order = str(result.get("orderId", ""))

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 # --- Position sizing ---
-BASE_POSITION_PCT: float = 0.01  # 1% of balance per entry
+BASE_POSITION_PCT: float = 0.10  # 10% of balance per entry
 
 # --- DCA levels ---
 MAX_DCA_LEVELS: int = 3  # entry + 2 DCA adds

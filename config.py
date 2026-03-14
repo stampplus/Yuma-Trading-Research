@@ -43,7 +43,7 @@ TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # --- Symbol settings ---
-SYMBOL: str = "BTCUSDC"
+SYMBOL: str = "DOGEUSDC"
 LEVERAGE: int = 10
 MARGIN_TYPE: str = "ISOLATED"
 

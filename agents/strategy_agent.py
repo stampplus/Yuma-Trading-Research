@@ -48,7 +48,7 @@ Response format:
 Rules:
 - APPROVE means proceed with the trade
 - REJECT means do not trade, wait for better conditions
-- params.size_pct is fraction of balance (0.01 = 1%)
+- params.size_pct is fraction of balance (0.10 = 10%)
 - params.limit_offset_pct is how far below current price to set limit order
 - ttl_minutes is how long this decision is valid (for caching)
 - Be conservative — when in doubt, REJECT
@@ -385,6 +385,8 @@ class StrategyAgent:
         """
         if decision.get("decision") == "APPROVE":
             params = decision.get("params", {})
+            # Use DCA config size, not AI response (AI often returns low default)
+            params["size_pct"] = self._get_dca_size_pct()
             await self._bus.emit_async(
                 "ORDER_APPROVED",
                 {
