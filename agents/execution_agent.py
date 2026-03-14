@@ -319,23 +319,11 @@ class ExecutionAgent:
             except BinanceAPIError as e:
                 logger.error("TP-2 placement failed: %s", e)
 
-        # Hard SL: -9% from avg — use conditional TP (works on all coins)
-        # Set TP at SL price as emergency exit
+        # Hard SL: -9% from avg — skip for compatibility
+        # Binance STOP orders have limited symbol support
         sl_price = round(avg * (1 - HARD_SL_PCT), 2)
-        sl_qty = int(total_qty)  # Close entire position
-
-        # For now, skip SL if not supported - rely on manual close or TP
-        # (Binance STOP orders have limited symbol support)
         logger.info(
-            "SL would trigger at %.2f (%.0f%% from avg) - skipping for compatibility",
+            "SL would trigger at %.2f (%.0f%% from avg) - skipped for compatibility",
             sl_price,
             HARD_SL_PCT * 100,
         )
-            self._state.sl_order = str(result.get("orderId", ""))
-            trade_logger.info(
-                "SL placed: stopPrice=%.2f (%.0f%% from avg) closePosition=true",
-                sl_price,
-                HARD_SL_PCT * 100,
-            )
-        except BinanceAPIError as e:
-            logger.error("SL placement failed: %s", e)

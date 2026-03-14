@@ -105,7 +105,8 @@ class StrategyAgent:
         needs_claude = data.get("needs_claude", False)
         if not needs_claude:
             # Auto-approved by MiniMax — forward to execution
-            if data.get("type") == "LONG":
+            signal_type = data.get("type")
+            if signal_type == "LONG":
                 await self._bus.emit_async(
                     "ORDER_APPROVED",
                     {
@@ -113,8 +114,20 @@ class StrategyAgent:
                         "source": "minimax_auto",
                         "params": {
                             "side": "BUY",
-                            "size_pct": self._get_dca_size_pct(),
-                            "limit_offset_pct": 0.001,
+                            "size_pct": self._get_dynamic_size_pct(data.get("confidence", 0.5)),
+                        },
+                    },
+                )
+            elif signal_type == "SHORT":
+                # SHORT means close position or open short
+                await self._bus.emit_async(
+                    "ORDER_APPROVED",
+                    {
+                        "signal": data,
+                        "source": "minimax_auto",
+                        "params": {
+                            "side": "SELL",
+                            "size_pct": 1.0,  # Close full position
                         },
                     },
                 )
@@ -385,8 +398,19 @@ class StrategyAgent:
         """
         if decision.get("decision") == "APPROVE":
             params = decision.get("params", {})
-            # Use DCA config size, not AI response (AI often returns low default)
-            params["size_pct"] = self._get_dca_size_pct()
+            signal_type = signal_data.get("type", "LONG")
+            confidence = signal_data.get("confidence", 0.5)
+
+            if signal_type == "SHORT":
+                # SHORT = close position / open short
+                params["side"] = "SELL"
+                params["size_pct"] = 1.0  # Close full position
+            else:
+                # LONG = open position
+                params["side"] = "BUY"
+                # Use dynamic sizing based on confidence
+                params["size_pct"] = self._get_dynamic_size_pct(confidence)
+
             await self._bus.emit_async(
                 "ORDER_APPROVED",
                 {
@@ -414,3 +438,27 @@ class StrategyAgent:
             if dca["level"] == level:
                 return BASE_POSITION_PCT * dca["size_multiplier"]
         return BASE_POSITION_PCT
+
+    def _get_dynamic_size_pct(self, confidence: float) -> float:
+        """Get position size based on AI confidence.
+
+        Higher confidence = bigger position
+        Lower confidence = smaller position
+
+        Args:
+            confidence: AI confidence score (0.0 - 1.0)
+
+        Returns:
+            Size as fraction of balance.
+        """
+        from strategies.dca_config import BASE_POSITION_PCT
+
+        # Dynamic sizing based on confidence
+        if confidence >= 0.85:
+            return BASE_POSITION_PCT * 1.5  # 15% for high confidence
+        elif confidence >= 0.70:
+            return BASE_POSITION_PCT  # 10% for medium confidence
+        elif confidence >= 0.55:
+            return BASE_POSITION_PCT * 0.5  # 5% for low confidence
+        else:
+            return BASE_POSITION_PCT * 0.25  # 2.5% for very low confidence
