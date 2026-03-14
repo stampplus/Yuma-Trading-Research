@@ -164,7 +164,9 @@ class SignalAgent:
         return ctx
 
     async def _classify_signal(self, context: dict[str, Any]) -> dict[str, Any] | None:
-        """Call Groq API (Llama 3.3 70B) for signal classification.
+        """Call AI API for signal classification.
+
+        Uses Groq (free) or Claude based on config.
 
         Args:
             context: Compressed market context.
@@ -175,6 +177,55 @@ class SignalAgent:
         if not self._session:
             logger.warning("SignalAgent session not initialized, skipping")
             return None
+
+        # Check which model to use
+        model_choice = getattr(config, 'SIGNAL_MODEL', 'groq')
+
+        if model_choice == 'claude':
+            return await self._classify_with_claude(context)
+        else:
+            return await self._classify_with_groq(context)
+
+    async def _classify_with_claude(self, context: dict[str, Any]) -> dict[str, Any] | None:
+        """Call Claude API for signal classification."""
+
+        if not config.ANTHROPIC_API_KEY:
+            logger.warning("ANTHROPIC_API_KEY not set, falling back to Groq")
+            return await self._classify_with_groq(context)
+
+        url = "https://api.anthropic.com/v1/messages"
+
+        payload = {
+            "model": config.CLAUDE_MODEL,
+            "max_tokens": 300,
+            "system": SIGNAL_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": json.dumps(context)}],
+        }
+
+        headers = {
+            "x-api-key": config.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with self._session.post(url, json=payload, headers=headers) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    logger.error("Claude API error: HTTP %d — %s", resp.status, body[:300])
+                    # Fallback to Groq
+                    return await self._classify_with_groq(context)
+
+                result = await resp.json()
+                content = result.get("content", [{}])[0].get("text", "")
+                return self._parse_signal_response(content)
+
+        except Exception as e:
+            logger.error("Claude classification failed: %s", e)
+            return await self._classify_with_groq(context)
+
+    async def _classify_with_groq(self, context: dict[str, Any]) -> dict[str, Any] | None:
+        """Call Groq API (Llama 3.3 70B) for signal classification."""
 
         if not config.GROQ_API_KEY:
             logger.warning("GROQ_API_KEY not set, skipping signal classification")
